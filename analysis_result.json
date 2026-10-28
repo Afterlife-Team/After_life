@@ -1,0 +1,60 @@
+{
+    "pages": [
+        {
+            "path": "index.html",
+            "title": "Old Portfolio",
+            "headings": [
+                "Welcome to my website"
+            ],
+            "paragraphs": [],
+            "links": [
+                {
+                    "text": "Projects",
+                    "href": "projects.html"
+                },
+                {
+                    "text": "About Me",
+                    "href": "about.html"
+                }
+            ],
+            "images": [
+                {
+                    "src": "images/logo.png",
+                    "alt": "My Logo"
+                }
+            ]
+        },
+        {
+            "path": "projects.html",
+            "title": "My Projects",
+            "headings": [
+                "My Projects"
+            ],
+            "paragraphs": [],
+            "links": [
+                {
+                    "text": "Home",
+                    "href": "index.html"
+                }
+            ],
+            "images": []
+        }
+    ],
+    "broken_links": [
+        {
+            "source": "index.html",
+            "target": "about.html"
+        }
+    ],
+    "missing_assets": [
+        {
+            "source": "index.html",
+            "target": "images/logo.png"
+        }
+    ],
+    "summary": {
+        "total_pages": 2,
+        "broken_links_count": 1,
+        "missing_assets_count": 1
+    }
+}
