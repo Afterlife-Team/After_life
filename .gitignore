@@ -222,3 +222,6 @@ __marimo__/
 .pytest_cache/
 .env
 *.pyc
+.pytest_tmp*/
+.env.*
+!.env.example
