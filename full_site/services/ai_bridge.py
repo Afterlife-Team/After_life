@@ -1,15 +1,20 @@
 """Strict contract for Rana/Suzy's AI service. No provider/model keys in source."""
 import os
 import re
+from collections import Counter
+
 import requests
 from bs4 import BeautifulSoup
 from services.site_bundle import SiteBundle, WebsiteError
 from services.encoding import decode_html, normalize_meta_utf8
 
+
 class AIIntegrationError(RuntimeError):
     pass
 
+
 MAX_AI_TEXT = 1_200_000
+
 
 def _plain_text(raw: bytes) -> str:
     soup = BeautifulSoup(decode_html(raw), 'html.parser')
@@ -92,7 +97,7 @@ def apply_ai_changes(original: SiteBundle, changes: dict) -> SiteBundle:
             new_handlers = sorted((t.name,k,v) for t in after_html.find_all(True) for k,v in t.attrs.items() if k.lower().startswith('on'))
             if new_handlers != old_handlers:
                 raise AIIntegrationError('AI cannot insert or alter inline event handlers.')
-        elif re.search(r'@import\b|url\(\s*[\"\']?https?://',updated,re.I):
+        elif re.search(r'@import\b|url\(\s*["\']?https?://',updated,re.I):
             raise AIIntegrationError('AI may not introduce remote CSS dependencies.')
         new_files[path] = (normalize_meta_utf8(updated) if path.lower().endswith(('.html','.htm')) else updated).encode('utf-8')
     if all(new_files[p] == original.files[p] for p in changes):
@@ -100,12 +105,53 @@ def apply_ai_changes(original: SiteBundle, changes: dict) -> SiteBundle:
     return original.copy_with(new_files)
 
 
+
+
 def _content_preserved(before: str, after: str) -> bool:
-    """Approximate check, helps catch accidental loss; not a semantic guarantee."""
-    normalize = lambda s: re.sub(r'\s+', ' ', s).casefold()
-    b, a = normalize(before), normalize(after)
-    if b in a: return True
-    # Look for all substantive chunks to avoid word-order sensitivity from layout.
-    parts = [p for p in re.split(r'[.!?؟\n]+', b) if len(p.strip()) >= 12]
-    if not parts: return b in a
-    return sum(p.strip() in a for p in parts) / len(parts) >= .9
+    """
+    Check preservation of original visible text.
+
+    Allows:
+    - Added headers and navigation text
+    - Sentence reordering
+    - Whitespace and case differences
+
+    Rejects:
+    - Missing original sentence segments
+    - Missing repeated sentences
+    - Sentences changed into longer, different sentences
+
+    Conservative textual validation, not a semantic guarantee.
+    """
+
+    def normalize(text: str) -> str:
+        return re.sub(r'\s+', ' ', text).casefold().strip()
+
+    original = normalize(before)
+    redesigned = normalize(after)
+
+    if not original:
+        return True
+
+    # First, accept if the entire original text is still present.
+    if original in redesigned:
+        return True
+
+    # Keep sentence-ending punctuation as part of each segment.
+    segments = [
+        part.strip()
+        for part in re.findall(r'[^.!?؟]+[.!?؟]*', original)
+        if part.strip()
+    ]
+
+    for segment, required_count in Counter(segments).items():
+        # Match at a word boundary so added headers are allowed,
+        # but different words or altered sentences are not.
+        pattern = r'(?<!\w)' + re.escape(segment) + r'(?!\w)'
+
+        actual_count = len(re.findall(pattern, redesigned))
+
+        if actual_count < required_count:
+            return False
+
+    return True
