@@ -1,148 +1,63 @@
-
 import re
-from bs4 import BeautifulSoup
-from html5lib.html5parser import HTMLParser
+from html.parser import HTMLParser
+from html_renderer import safe_local_href
 
+ALLOWED_TAGS = {'html','head','body','meta','title','style','header','nav','main','section','article','footer','div','h1','h2','h3','h4','h5','h6','p','span','a','strong','em','ul','ol','li','br','hr'}
+VOID = {'meta','br','hr'}
+ALLOWED_CLASS = re.compile(r'[A-Za-z][A-Za-z0-9_-]*\Z')
 
-ALLOWED_TAGS = {
-    "html", "head", "body", "title", "meta",
-    "style", "header", "footer", "main", "nav",
-    "section", "article", "aside", "div",
-    "h1", "h2", "h3", "h4", "h5", "h6",
-    "p", "span", "strong", "em", "b", "i",
-    "ul", "ol", "li", "br", "hr",
-    "blockquote", "small"
-}
-
-GLOBAL_ATTRIBUTES = {
-    "class", "id", "aria-label", "role"
-}
-
-ALLOWED_ATTRIBUTES = {
-    "html": {"lang"},
-    "meta": {"charset", "name", "content"}
-}
-
-DANGEROUS_CSS = re.compile(
-    r"@import|@font-face|@namespace|"
-    r"url\s*\(|expression\s*\(|"
-    r"image-set\s*\(|-moz-binding|"
-    r"behavior\s*:",
-    re.IGNORECASE
-)
-
-MAX_HTML_LENGTH = 100_000
+class _Checker(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.stack = []
+        self.errors = []
+        self.css = False
+    def handle_starttag(self, name, attrs):
+        if name not in ALLOWED_TAGS:
+            self.errors.append('Forbidden tag: ' + name)
+        attrs = dict(attrs)
+        allowed = {'class'}
+        if name == 'html': allowed |= {'lang'}
+        if name == 'nav': allowed |= {'aria-label'}
+        if name == 'a': allowed |= {'href'}
+        if name == 'meta': allowed |= {'charset','name','content'}
+        for k,v in attrs.items():
+            if k not in allowed:
+                self.errors.append('Forbidden attribute: ' + name + '.' + k)
+            if k == 'class' and any(not ALLOWED_CLASS.fullmatch(s) for s in (v or '').split()):
+                self.errors.append('Invalid class')
+        if name == 'meta':
+            charset = attrs == {'charset':'UTF-8'}
+            viewport = attrs == {'name':'viewport','content':'width=device-width, initial-scale=1'}
+            if not (charset or viewport): self.errors.append('Disallowed meta element')
+        if name == 'a' and safe_local_href(attrs.get('href')) is None:
+            self.errors.append('Unsafe link')
+        if name == 'style': self.css = True
+        if name not in VOID: self.stack.append(name)
+    def handle_endtag(self, name):
+        if name in VOID: self.errors.append('Unexpected closing void tag: '+name)
+        elif not self.stack or self.stack[-1] != name:
+            self.errors.append('Mismatched closing tag: '+name)
+        else:
+            self.stack.pop()
+        if name == 'style': self.css = False
+    def handle_data(self, data):
+        if self.css and re.search(r'@import|@font-face|url\s*\(|expression\s*\(|@namespace|image-set\s*\(|-moz-binding|behavior\s*:',data,re.I):
+            self.errors.append('Disallowed CSS feature')
 
 
 def validate_html(html):
-    errors = []
-
-    if not isinstance(html, str) or not html.strip():
-        return {
-            "valid": False,
-            "errors": ["HTML is empty"]
-        }
-
-    if len(html) > MAX_HTML_LENGTH:
-        errors.append("HTML exceeds maximum length")
-
-    if not re.search(
-        r"^\s*<!doctype\s+html\s*>",
-        html,
-        flags=re.IGNORECASE
-    ):
-        errors.append("Missing HTML5 doctype")
-
-    if not re.search(r"<html\b", html, re.I):
-        errors.append("Missing html tag")
-
-    if not re.search(r"<body\b", html, re.I):
-        errors.append("Missing body tag")
-
-    if not re.search(r"</html\s*>", html, re.I):
-        errors.append("Missing closing html tag")
-
-    # Check HTML structure
-    parser = HTMLParser(strict=False)
-
+    if not isinstance(html,str) or not html.strip(): return {'valid':False,'errors':['HTML is empty']}
+    errors=[]
+    if len(html) > 100_000: errors.append('HTML too long')
+    if not re.match(r'\s*<!doctype\s+html\s*>',html,re.I): errors.append('Missing doctype')
+    parser=_Checker()
     try:
-        parser.parse(html)
-
-        for position, code, details in parser.errors:
-            line, column = position
-
-            errors.append(
-                f"HTML structure error "
-                f"at {line}:{column}: {code}"
-            )
-
-    except Exception as error:
-        errors.append(
-            "HTML parsing failed: "
-            + type(error).__name__
-        )
-
-    soup = BeautifulSoup(html, "html.parser")
-
-    for tag in soup.find_all(True):
-        name = tag.name.lower()
-
-        if name not in ALLOWED_TAGS:
-            errors.append(
-                f"Forbidden tag: {name}"
-            )
-            continue
-
-        # Only allow required metadata
-        if name == "meta":
-            charset = tag.get("charset")
-
-            meta_name = str(
-                tag.get("name", "")
-            ).lower()
-
-            meta_content = str(
-                tag.get("content", "")
-            ).strip()
-
-            is_charset = (
-                str(charset).lower() == "utf-8"
-                and set(tag.attrs) == {"charset"}
-            )
-
-            is_viewport = (
-                meta_name == "viewport"
-                and meta_content ==
-                "width=device-width, initial-scale=1"
-                and set(tag.attrs) ==
-                {"name", "content"}
-            )
-
-            if not (is_charset or is_viewport):
-                errors.append(
-                    "Disallowed meta element"
-                )
-
-        allowed_attributes = (
-            GLOBAL_ATTRIBUTES
-            | ALLOWED_ATTRIBUTES.get(name, set())
-        )
-
-        for attr, value in tag.attrs.items():
-            if attr.lower() not in allowed_attributes:
-                errors.append(
-                    f"Forbidden attribute: {name}.{attr}"
-                )
-
-        if name == "style":
-            css = tag.get_text()
-
-            if DANGEROUS_CSS.search(css):
-                errors.append(
-                    "Disallowed CSS feature detected"
-                )
-
-    return {
-        "valid": len(errors) == 0,
-        "errors": list(dict.fromkeys(errors))
-    }
+        parser.feed(html)
+        parser.close()
+    except Exception as e:
+        errors.append('Parser exception: '+str(e))
+    errors += parser.errors
+    if parser.stack: errors.append('Unclosed tags: '+', '.join(parser.stack))
+    if not re.search(r'<body\b',html,re.I): errors.append('Missing body')
+    return {'valid':not errors,'errors':list(dict.fromkeys(errors))}
