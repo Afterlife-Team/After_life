@@ -1,89 +1,194 @@
-# 404 Afterlife
+[README_content_preservation (1).md](https://github.com/user-attachments/files/34223815/README_content_preservation.1.md)
+# 🕸️ 404 Afterlife — Content Preservation & Full-Site Recovery
 
-Recover and modernize real static websites while preserving their pages and assets. The runnable full-site application lives in **`full_site/`**. Its CSS refresh works offline with a ZIP; actual AI redesign requires the team's service or imported JSON.
+**Dead websites, reborn — preserve the real pages, content, links, and assets.**
 
-## Repository layout and team compatibility
+> **Branch:** `feature/content-preservation`  
+> **Repository:** [Afterlife-Team/After_life](https://github.com/Afterlife-Team/After_life)  
+> **Challenge:** Hacktoberfest 2026 — Ghost in the Machine
 
-- `full_site/app.py`: complete Streamlit workflow, ZIP/Wayback ingestion, page comparison, analysis, AI JSON exchange and downloads.
-- `full_site/services/`: ingestion, analysis, preview, deterministic redesign, archive recovery and AI validation.
-- `full_site/tests/`: full-site, security, mocked Wayback, HTTP integration and Streamlit smoke tests.
-- `full_site/examples/sample_website_404_afterlife.zip`: sample static site.
-- `analyzer.py`, `tests/test_analyzer.py`, `sample_site/` and root demo scripts: original team analyzer, preserved.
-- Root `app.py`: preserved earlier UI. It imports absent `services.analyzer`/`services.ai_redesign` and is **not the runnable entry point**. Use `full_site/app.py`.
+## About this branch
 
-The full-site implementation was imported into a separate directory from the local project package. Alternate `*_rec*`/numbered backup modules, generated example outputs, environments, archive caches and local reports were not imported. No existing teammate Python files were replaced. Legacy `full_site/services/archive.py` and `reconstruct.py` remain for compatibility; the new UI uses `archive_site.py` and `redesign.py`.
+This branch focuses on **preserving existing website content while recovering and modernizing static websites**. It combines the team's original website-analysis work with a separate, integrated full-site Streamlit implementation under `full_site/`.
 
-## Current functionality
+Rather than generating a visually attractive replacement that silently drops original information, the workflow starts with the available website files, inspects their structure, applies a selected modernization method, and compares the resulting files against the originals.
 
-1. **ZIP input:** accepts up to 15 MiB compressed, 350 entries, 7 MiB per supported file and 45 MiB of supported uncompressed data. Rejects unsafe paths, duplicate names (case insensitive), encrypted entries and Unix symlinks/special files. Unsupported extensions are omitted with a warning. Reads `.html` and `.htm`, CSS, images, fonts, JavaScript and supported static assets without extracting or executing them.
-2. **Analysis:** analyzes every included HTML page, headings, paragraphs, links, images, CSS colors and missing local references. This is static analysis, not a browser rendering or external-link availability check.
-3. **CSS refresh:** adds a shared stylesheet to every page, with a conservative mode for complex sites. Simple secondary pages may receive homepage-derived navigation; unavailable responsive image candidates are removed and protocol-relative navigation links gain HTTPS. Original asset bytes are retained. This mode is **not AI**.
-4. **Before/After:** select the same page in both views. Local styles/images/fonts are inlined, SVG is sanitized, scripts and form submission are blocked, and a restrictive CSP blocks remote resource loads. External navigation links can open a new tab; use the page selector for internal navigation.
-5. **Downloads:** original accepted bundle, redesigned website ZIP, AI input JSON, and Wayback recovery report where applicable. The original bundle download contains accepted files, not a byte-for-byte copy of the uploaded ZIP.
+**Important distinction:** The built-in **Safe CSS refresh is deterministic, not AI-generated**. AI-assisted changes are supported through a team endpoint or imported JSON; whether an actual model is used depends on the selected integration and its configuration. This branch does not bundle a trained model or model weights.
 
-## Wayback URL recovery
+## What this branch provides
 
-URL recovery remains available alongside ZIP input. It validates public HTTP(S) URLs, queries the Internet Archive Availability API, and can fall back to CDX for a requested year. A chosen year must match the returned capture; automatic mode asks for an available closest capture.
+- **ZIP ingestion:** accepts a bundle of static website files, validates entries, and keeps supported HTML, CSS, images, fonts, scripts, and related assets.
+- **Website analysis:** inspects available HTML pages, headings, paragraphs, links, images, CSS colors, and missing local references.
+- **Content-preserving modernization:** applies a shared CSS refresh across the included HTML pages without presenting the result as AI-generated.
+- **Wayback recovery:** attempts to retrieve a bounded set of archived pages and assets from Internet Archive snapshots, with a coverage report.
+- **Before/after comparison:** previews the same selected page from the original and redesigned bundles.
+- **AI integration contract:** exports original HTML/CSS and asset metadata for the AI team; accepts validated HTML/CSS updates through JSON or a configured endpoint.
+- **Downloads:** exports the accepted original bundle, redesigned ZIP, AI input JSON, and recovery report when applicable.
+- **Testing:** includes automated tests for parsing, preservation, security constraints, mocked archive behavior, integration, and the Streamlit entry point.
 
-The crawler attempts up to **12 pages / 60 assets / 20 MiB**, with a 3 MiB resource limit, on the same host. It follows only approved Archive API/replay redirects, downloads available HTML/CSS/images/fonts, rewrites recovered references and reports discovered, attempted, recovered, failed and unattempted resources. These counts do not establish completeness of the historical site. Off-host assets, JS-driven content and backend services are outside this recovery.
+## Repository layout
 
-Successful responses are cached locally in `full_site/.cache/wayback.sqlite3` (availability/CDX about 1 hour, replay resources 7 days; body budget 64 MiB). HTTP 429 honors Retry-After or a default 5-minute cooldown; cached successes remain usable. It does not immediately retry CDX after a 429. Both API paths still depend on Internet Archive: there is **no independent archive-provider fallback**. If unavailable, wait or upload a ZIP; repeated Revive clicks will not recover unarchived material.
+```text
+After_life/
+├── README.md                    # Branch-level documentation
+├── analyzer.py                  # Original team website analyzer
+├── tests/test_analyzer.py       # Original analyzer tests
+├── sample_site/                 # Original team samples
+├── app.py                       # Earlier UI; not the runnable full-site entry point
+├── pytest.ini                   # Test discovery/configuration
+└── full_site/
+    ├── app.py                   # Runnable full-site Streamlit application
+    ├── requirements.txt         # Full-site dependencies
+    ├── RUN_WINDOWS.bat          # Windows launcher
+    ├── examples/
+    │   └── sample_website_404_afterlife.zip
+    ├── services/
+    │   ├── site_bundle.py       # ZIP reading, validation, export
+    │   ├── analysis.py          # Whole-site static analysis
+    │   ├── preview.py           # Restricted static page preview
+    │   ├── redesign.py          # Deterministic CSS modernization
+    │   ├── archive_site.py      # Wayback retrieval and coverage
+    │   ├── security.py          # URL safety checks
+    │   ├── ai_bridge.py         # AI JSON/endpoint integration
+    │   └── ...                  # Other support/compatibility modules
+    └── tests/                   # Full-site and integration tests
+```
 
-## Install and run — Windows PowerShell
+The root-level `app.py` is a legacy interface with unresolved imports in this branch. **Run `full_site/app.py` instead.** Existing teammate files were preserved rather than overwritten when the full-site implementation was incorporated.
 
-Use Python 3.11 or newer. Run these commands from the repository root:
+## How the pipeline works
+
+```text
+Upload website ZIP                 Enter website URL
+        |                                 |
+        v                                 v
+ Validate and read files       Select Wayback capture
+        |                         Recover available files
+        +----------------+----------------+
+                         |
+                         v
+                Analyze original site
+                         |
+                         v
+                 Choose redesign path
+                   /     |       \
+             CSS refresh |     Team AI endpoint
+                         |     or imported AI JSON
+                         v
+              Validate / assemble output
+                         |
+                         v
+                Analyze redesigned site
+                         |
+                         v
+          Compare pages and download ZIP
+```
+
+### Preservation approach
+
+The system operates on the **available static files**, not on an imagined reconstruction of an entire historical website. It attempts to keep existing text, local references, and asset bytes. Its checks are conservative and heuristic; they are **not a proof** that every visual, functional, or semantic detail remains unchanged.
+
+### Archive coverage
+
+Archive recovery is deliberately bounded. The current documented limits are up to **12 pages, 60 assets, 20 MiB total**, and **3 MiB per resource**, subject to what the Internet Archive actually has. The recovery report separates discovered, recovered, failed, and unattempted items. Missing historical content cannot be guaranteed to be restored.
+
+Internet Archive rate limits may cause HTTP 429 errors. Successful responses can be cached, but there is no independent archive provider fallback in this branch.
+
+## Installation (Windows PowerShell)
+
+**Requirements:** Python 3.11 or newer, pip, and an internet connection for the initial installation. Internet access is also needed for live Wayback retrieval or remote AI services.
+
+From the repository root:
 
 ```powershell
+git clone https://github.com/Afterlife-Team/After_life.git
+cd After_life
+git switch feature/content-preservation
+
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r full_site\requirements.txt
 cd full_site
 ..\.venv\Scripts\python.exe -m streamlit run app.py
 ```
 
-Alternatively, double-click `full_site/RUN_WINDOWS.bat`; it creates its own environment inside `full_site/`, installs requirements and launches the app. Network access is needed for initial dependency installation, Wayback and a remote AI endpoint. ZIP + CSS refresh runs offline after installation.
+Alternatively, launch `full_site/RUN_WINDOWS.bat` on Windows; it prepares its own environment under `full_site/`.
 
-Demo: Upload ZIP → choose `sample_website_404_afterlife.zip` → Safe CSS refresh → Revive Entire Website → compare the available pages → download the redesigned ZIP.
+**Note:** ZIP input + Safe CSS refresh can work offline after dependencies have been installed. Wayback recovery and a remote AI endpoint require network access.
 
-## Team AI integration
+## Quick demo
 
-No Gemma/model runtime or provider credentials are bundled. Two integration routes are implemented:
+1. Start the Streamlit application from `full_site/`.
+2. Choose **Upload ZIP**.
+3. Upload `full_site/examples/sample_website_404_afterlife.zip`.
+4. Select **Safe CSS refresh (works now)**.
+5. Click **Revive Entire Website**.
+6. Inspect the analysis and select matching pages in **Before / After**.
+7. Download the redesigned website ZIP and compare its files with the accepted original bundle.
 
-- Export the original HTML/CSS and asset manifest as JSON, obtain revised files from the AI team, then select **Import team AI JSON**.
-- Configure a trusted JSON HTTP endpoint before starting Streamlit:
+You can also select **Recover from URL**, supply a public HTTP(S) address, and optionally choose an archive year. Success depends on Internet Archive availability and coverage.
+
+## Optional AI integration
+
+The full-site workflow exposes an integration contract for the team's AI reconstruction component. This allows the content-preservation layer to remain separate from model execution.
+
+**Option A — Import AI JSON:** export the AI input JSON from the application, process it with the team's model/service, and import a response containing updated existing HTML/CSS files.
+
+**Option B — Trusted endpoint:** configure the endpoint before starting Streamlit:
 
 ```powershell
 $env:AFTERLIFE_AI_ENDPOINT = "http://127.0.0.1:8000/redesign"
-# Only if required by the team service:
+# Only when the service requires a token:
 $env:AFTERLIFE_AI_API_KEY = "your-secret-token"
 ```
 
-Remote endpoints require HTTPS; local HTTP supports localhost/127.0.0.1. The endpoint receives a POST containing `task`, `homepage`, `files`, `assets` and preservation rules. HTML/CSS request text is capped at 1.2 MB; HTTP connect/read timeouts are 5/120 seconds. The response body is checked against 3 MB after receipt (not streamed), with a 1.5 MB per-file edit limit.
-
-Expected response:
+Example response shape:
 
 ```json
-{"files": {"index.html": "<html>...complete revised original page...</html>"}}
+{
+  "files": {
+    "index.html": "<html>...complete revised original page...</html>"
+  }
+}
 ```
 
-Return **every original HTML page**, plus optional existing CSS files. Validation rejects unknown paths, dropped anchor/image references, changed script tags/event handlers, and detected text loss; original binary assets remain. Validation is heuristic, does not verify AI provenance, and does not fully enforce all prompt rules (such as no new forms/external dependencies in HTML). Review output before deployment. See [the full AI contract](full_site/TEAM_AI_INTERFACE.md).
+The validator checks for unexpected file paths, certain missing references, script/event-handler changes, and detectable text loss. It cannot guarantee perfect preservation or prove that an imported JSON response was AI-generated. A separate local Gemma/Ollama workflow may exist in other versions of the project; **do not assume this branch's endpoint is running Gemma without checking the connected service**.
 
 ## Tests and verification
 
-From the repository root after installation:
+From the repository root after installing dependencies:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q --basetemp=.pytest_tmp
 .\.venv\Scripts\python.exe -m compileall -q full_site analyzer.py
 ```
 
-`pytest.ini` selects the actual test directories and makes `full_site/services` importable. Root `test_run.py`, `test_links.py` and `test_zip.py` are standalone demos, not pytest test cases; `test_zip.py` writes `analysis_result.json`, so it is excluded from automatic collection.
+**Recorded verification (October 29, 2026):** the branch documentation reports **42 passing pytest tests** on Windows with Python 3.15.2, along with successful syntax compilation and a basic Streamlit health check. These are historical results from that verification run, **not a claim that the latest commit was retested for this README**.
 
-Verification on **2026-10-29**, Windows, Python 3.15.2: **42 pytest tests passed**, covering the original analyzer, ZIP preservation/export, reference resolution, text preservation, SVG restrictions, AI validation, a real local HTTP AI stub, mocked archive fallback/rate limits/coverage, and Streamlit initial rendering/input errors. Syntax compilation passed. A temporary headless Streamlit server returned **200 / ok** on `/_stcore/health` and was stopped. A single live Availability API request returned **200** and an available example.com capture. Full live archive crawling and an actual team model were not exercised; their success is not implied by these checks. No fresh dependency installation or visual browser review was performed.
+The tests cover original analyzer behavior, ZIP handling, link/reference checks, preservation, SVG restrictions, AI response validation, mocked Wayback/rate limits, an HTTP AI stub, and basic UI smoke checks. Full live archive crawling, real model quality, and visual browser fidelity were not established by that test run.
 
-Fixes made in the imported implementation: exclude `<head>` from visible-text comparison; reject changed short text; validate raw ZIP member names before Windows normalizes separators; handle prohibited SVG entities without crashing the preview. ZIP fixtures retain raw backslashes so the Windows regression test exercises the actual rejection path.
+## Security and limitations
 
-## Limitations and local data
+- Only upload websites you own or have permission to process.
+- ZIP files are subject to size, file-count, path, duplicate-name, and file-type restrictions; unsupported entries may be omitted.
+- Static analysis does not verify the availability of external links.
+- Archive recovery does not reconstruct server-side PHP/ASP behavior, databases, login flows, or content missing from the archive.
+- The preview disables scripts and form submissions, sanitizes SVG, and blocks remote resources; it is **not** a production-grade sandbox.
+- Original JavaScript files may remain in exported bundles. Review all exports before deploying them publicly.
+- Do not commit environments, API keys, secrets, private uploaded sites, generated exports, or archive caches.
 
-This is a hackathon prototype for static sites. It cannot restore databases, PHP/ASP server behavior or assets absent from an archive/ZIP. Preview deliberately differs from a live site because JavaScript is disabled. Original JS remains in exported ZIPs. Meta CSP and Streamlit iframes are not a hardened production sandbox; public hosting needs isolated origins, HTTP security headers and network isolation. CSS and preservation checks are conservative heuristics and need manual review.
+## Branch ownership and team context
 
-Do not commit `.venv/`, `.cache/`, `.pytest_cache/`, `.pytest_tmp*/`, `.env*`, Streamlit secrets, API tokens, user uploads or generated private website exports. The existing root `analysis_result.json` is a previously tracked sample result; this change does not regenerate it. Dependencies are version-ranged, not locked; the verified runtime used Streamlit 1.66.1, pytest 9.2.0, requests 2.34.2, BeautifulSoup 4.15.0 and defusedxml 0.7.1.
+**Branch:** `feature/content-preservation`  
+**Branch implementation and ownership:** **Sozan (سوزان)**
+
+Sozan developed the content-preservation work documented in this branch, including the full-site preservation and recovery workflow described above. This branch should be credited to **Sozan**, not Rana.
+
+404 Afterlife is a collaborative team project with **Sozan, Rana, and Malak**. Their contributions elsewhere in the project are separate from authorship of this branch. Git commits and pull requests provide the detailed change history.
+
+## Project status
+
+This is a **hackathon prototype**, not a production website-restoration service. The branch demonstrates static content analysis, bounded archival recovery, deterministic modernization, comparison, export, and a contract for AI-assisted updates. Further work includes stronger browser-based regression tests, improved historical coverage, better visual preservation evaluation, and production isolation for untrusted website content.
+
+---
+
+**404 Afterlife** · Hacktoberfest 2026 · *Preserve what the web remembers; be explicit about what it does not.*
