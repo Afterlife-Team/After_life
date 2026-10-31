@@ -222,6 +222,27 @@ __marimo__/
 .pytest_cache/
 .env
 *.pyc
+
+
+# Generated AI website outputs
+/multi_page_output/
+/missing_page_output/
+/404_afterlife_complete.zip
+/integrated_redesign.html
+/new_website.html
+/redesigned_website.html
+
+# Local experiment files
+/README_INSTALL.txt
+
+# Python cache
+__pycache__/
+.pytest_cache/
+*.pyc
+
+# Virtual environments
+.venv/
+venv/
 .pytest_tmp*/
 .env.*
 !.env.example
